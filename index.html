@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>线上食材选购实验</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+    * { font-family: 'Noto Sans SC', sans-serif; -webkit-tap-highlight-color: transparent; }
+    
+    :root {
+      --eco-green: #2d6a4f;
+      --eco-light-green: #d8f3dc;
+    }
+
+    body {
+      background-color: #f0f4f0;
+      background-image: radial-gradient(#d8f3dc 1px, transparent 1px);
+      background-size: 20px 20px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      margin: 0;
+    }
+
+    #app {
+      width: 100%;
+      background-color: white;
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    @media (min-width: 768px) {
+      body { padding: 20px 0; overflow: hidden; }
+      #app {
+        max-width: 414px;
+        height: 844px;
+        max-height: 90vh;
+        border-radius: 40px;
+        box-shadow: 0 30px 60px -12px rgba(45, 106, 79, 0.2);
+        margin: auto;
+        overflow-y: auto;
+        border: 8px solid #1b4332;
+      }
+      #app::-webkit-scrollbar { display: none; }
+    }
+
+    #screen-start {
+      background-image: linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url('https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80');
+      background-size: cover;
+      background-position: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .shop-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      height: calc(100vh - 140px);
+      background-color: #fcfdfc;
+    }
+
+    @media (min-width: 768px) { .shop-container { height: calc(844px - 140px); } }
+
+    .sidebar { width: 85px; background-color: #f1f8f1; border-right: 1px solid #e8f5e9; overflow-y: auto; height: 100%; }
+    .product-scroll-area { flex: 1; overflow-y: auto; height: 100%; padding: 12px; padding-bottom: 160px; scroll-behavior: smooth; }
+
+    .fixed-bottom-bar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 1.25rem;
+      background-color: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid #e8f5e9;
+      z-index: 100;
+      border-bottom-left-radius: 30px;
+      border-bottom-right-radius: 30px;
+    }
+
+    .carbon-tag {
+      width: 2.4rem; height: 2.4rem; border-radius: 12px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: white; font-weight: 900; font-size: 0.8rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 2px solid white; z-index: 30;
+    }
+    .carbon-tag-green { background-color: #2d6a4f; }
+    .carbon-tag-yellow { background-color: #ffb703; }
+    .carbon-tag-red { background-color: #bc4749; }
+    .carbon-level-text { font-size: 0.45rem; opacity: 0.9; line-height: 1; margin-top: -1px; }
+
+    .tag-peer { background: #dbeafe; color: #1d4ed8; border: 1px solid #3b82f6; padding: 3px 8px; border-radius: 8px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+    .tag-group { background: #f3e8ff; color: #7e22ce; border: 1px solid #a855f7; padding: 3px 8px; border-radius: 8px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+
+    .product-card { background: white; border-radius: 24px; padding: 14px; border: 1px solid #f0f4f0; display: flex; gap: 14px; position: relative; transition: all 0.3s; }
+    .product-card.selected { border-color: #2d6a4f; background-color: #f7fbf7; box-shadow: 0 12px 24px -8px rgba(45, 106, 79, 0.15); }
+    .product-image { width: 90px; height: 90px; border-radius: 18px; flex-shrink: 0; object-fit: cover; background: #f9fafb; }
+
+    .progress-dot { width: 12px; height: 6px; border-radius: 10px; background: #e8f5e9; transition: all 0.4s; }
+    .progress-dot.active { background: #2d6a4f; width: 24px; }
+    .progress-dot.filled { background: #40916c; }
+
+    .category-header { padding: 12px 0; font-weight: 900; font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+    .category-active { background: white; color: #2d6a4f; border-left: 4px solid #2d6a4f; font-weight: 900; }
+
+    .loading-overlay { position: fixed; inset: 0; background: #f0f4f0; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
+    .product-add-btn:not(:disabled) { pointer-events: auto; }
+  </style>
+</head>
+<body>
+
+  <div id="loading" class="loading-overlay">
+    <div class="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+    <p class="mt-4 text-emerald-800 font-bold">正在进入商店...</p>
+  </div>
+
+  <div id="app">
+    <div id="screen-start" class="flex">
+      <div class="w-20 h-20 bg-emerald-50 rounded-2xl flex items-center justify-center mb-6 shadow-inner"><i class="fas fa-shopping-basket text-emerald-600 text-3xl"></i></div>
+      <h1 class="text-2xl font-black text-emerald-900 mb-4 tracking-tight">线上食材选购实验</h1>
+      <div class="bg-white/60 backdrop-blur-md rounded-3xl p-6 mb-8 text-left space-y-4 w-full border border-emerald-100 text-sm text-emerald-900 shadow-sm">
+        <p class="font-black text-emerald-800 flex items-center gap-2"><i class="fas fa-info-circle"></i> 实验说明</p>
+        <div class="space-y-3 opacity-80">
+          <p>1. 请为今晚的<b>健康晚餐</b>挑选食材。</p>
+          <p>2. 您需要挑选<b>恰好 8 样</b>食材以完成任务。</p>
+          <p>3. 请留意食材右上角的标签。</p>
+        </div>
+      </div>
+      <button id="btn-start" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-black py-4 rounded-2xl shadow-xl active:scale-95 transition-all">进入选购</button>
+    </div>
+
+    <div id="screen-shop" class="hidden flex-col h-full relative bg-white">
+      <header class="bg-white px-4 pt-5 pb-3 sticky top-0 z-40 border-b border-emerald-50 flex-shrink-0">
+        <h2 class="text-xl font-black text-emerald-900 mb-4 flex items-center gap-2"><i class="fas fa-store text-emerald-600 text-sm"></i> 新鲜食材店</h2>
+        <div class="flex flex-col gap-2">
+          <div id="progress-dots" class="flex justify-between px-1"></div>
+          <div class="flex justify-between items-center px-1">
+            <span class="text-[10px] font-black text-emerald-300 uppercase tracking-widest">选购进度</span>
+            <span id="shop-counter-text" class="text-[10px] font-black text-emerald-600">还需选择 8 件</span>
+          </div>
+        </div>
+      </header>
+      <div class="shop-container">
+        <div class="sidebar no-scrollbar"><div id="sidebar-categories" class="flex flex-col"></div></div>
+        <div id="product-list" class="product-scroll-area no-scrollbar"></div>
+      </div>
+      <div class="fixed-bottom-bar">
+        <div class="flex items-center justify-between gap-4 max-w-md mx-auto">
+          <div class="flex flex-col">
+            <span class="text-[10px] text-emerald-400 font-black uppercase tracking-widest">已选</span>
+            <div class="flex items-baseline gap-0.5"><span id="footer-count" class="text-2xl font-black text-gray-900">0</span><span class="text-emerald-300 text-xs font-bold">/ 8</span></div>
+          </div>
+          <button id="btn-go-cart" disabled class="flex-1 bg-emerald-800 text-white font-black py-3.5 rounded-2xl">确认已选项目</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-cart" class="hidden flex-col h-full bg-emerald-50/30 overflow-hidden">
+      <header class="bg-white p-4 flex items-center gap-3 border-b border-emerald-50 flex-shrink-0">
+        <button id="btn-back-shop" class="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-900"><i class="fas fa-chevron-left"></i></button>
+        <h2 class="text-lg font-black text-emerald-900 tracking-tight">确认您的清单</h2>
+      </header>
+      <div id="cart-list" class="flex-1 p-4 space-y-3 overflow-y-auto no-scrollbar"></div>
+      <div class="p-5 bg-white border-t border-emerald-50 flex-shrink-0">
+        <div id="cart-msg" class="text-center py-3 rounded-2xl bg-emerald-50 text-emerald-700 text-xs font-black border border-emerald-100">请再选择 8 件食材</div>
+        <button id="btn-checkout" disabled class="w-full bg-emerald-700 text-white font-black py-4 rounded-2xl">确认下单</button>
+      </div>
+    </div>
+
+    <div id="screen-success" class="hidden flex-col items-center justify-center h-full p-10 text-center bg-white">
+      <div class="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center mb-6 shadow-inner"><i class="fas fa-check text-emerald-500 text-3xl"></i></div>
+      <h1 class="text-2xl font-black text-emerald-900 mb-3 tracking-tight">下单成功！</h1>
+      <p class="text-emerald-600/60 mb-10 text-sm font-medium">感谢您的参与。<br>您的选择已安全记录，仅用于研究分析。</p>
+      <a id="btn-questionnaire" href="#" class="w-full bg-emerald-800 text-white font-black py-4 rounded-2xl shadow-xl inline-block text-center">填写后续问卷</a>
+    </div>
+  </div>
+
+  <script>
+    // 问卷链接：部署前请改为你的问卷 URL（如腾讯问卷、问卷星）
+    const QUESTIONNAIRE_URL = ''; // 例如 'https://wj.qq.com/xxx'
+    // 数据后台接口：实验结束时会 POST 记录到此 URL。本地调试时确保后台已启动（python3 server.py），部署后改为你的后台域名
+    const EXPERIMENT_SUBMIT_URL = 'http://localhost:3000/api/record';
+
+    const INGREDIENTS = [
+      { id: 1, name: '生菜', category: '蔬菜豆制品', carbon: 'green', img: '实验图片/生菜.png' },
+      { id: 2, name: '西红柿', category: '蔬菜豆制品', carbon: 'green', img: '实验图片/西红柿.png' },
+      { id: 3, name: '黄瓜', category: '蔬菜豆制品', carbon: 'yellow', img: '实验图片/黄瓜.png' },
+      { id: 4, name: '西兰花', category: '蔬菜豆制品', carbon: 'green', img: 'https://images.unsplash.com/photo-1584270354949-c26b0d5b4a0c?w=400&h=400&fit=crop' },
+      { id: 5, name: '娃娃菜', category: '蔬菜豆制品', carbon: 'green', img: '实验图片/娃娃菜.png' },
+      { id: 6, name: '辣椒', category: '蔬菜豆制品', carbon: 'green', img: '实验图片/辣椒.png' },
+      { id: 7, name: '胡萝卜', category: '蔬菜豆制品', carbon: 'green', img: 'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=400&h=400&fit=crop' },
+      { id: 8, name: '洋葱', category: '蔬菜豆制品', carbon: 'green', img: 'https://images.unsplash.com/photo-1508747703725-719777637510?w=400&h=400&fit=crop' },
+      { id: 9, name: '玉米', category: '蔬菜豆制品', carbon: 'green', img: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=400&h=400&fit=crop' },
+      { id: 10, name: '豆腐', category: '蔬菜豆制品', carbon: 'green', img: '实验图片/豆腐.png' },
+      { id: 11, name: '响铃卷', category: '蔬菜豆制品', carbon: 'yellow', img: '实验图片/响铃卷.png' },
+      { id: 12, name: '黄牛牛肉', category: '肉禽蛋', carbon: 'red', img: 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=400&h=400&fit=crop' },
+      { id: 13, name: '羊肉卷', category: '肉禽蛋', carbon: 'red', img: '实验图片/羊肉卷.png' },
+      { id: 14, name: '鸡腿肉', category: '肉禽蛋', carbon: 'yellow', img: 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?w=400&h=400&fit=crop' },
+      { id: 15, name: '鸡翅', category: '肉禽蛋', carbon: 'yellow', img: '实验图片/鸡翅.jpg' },
+      { id: 16, name: '鸡蛋', category: '肉禽蛋', carbon: 'green', img: 'https://images.unsplash.com/photo-1506976785307-8732e854ad03?w=400&h=400&fit=crop' },
+      { id: 17, name: '基围虾', category: '海鲜水产', carbon: 'yellow', img: 'https://images.unsplash.com/photo-1559737558-2f5a35f4523b?w=400&h=400&fit=crop' },
+      { id: 18, name: '鲈鱼', category: '海鲜水产', carbon: 'yellow', img: '实验图片/鲈鱼.png' },
+      { id: 19, name: '牡蛎', category: '海鲜水产', carbon: 'green', img: '实验图片/牡蛎.png' },
+      { id: 20, name: '鱿鱼', category: '海鲜水产', carbon: 'green', img: '实验图片/鱿鱼.png' }
+    ];
+
+    const CATEGORIES = ['蔬菜豆制品', '肉禽蛋', '海鲜水产'];
+    let state = { step: 'start', group: '', cart: [], cartOrder: [], selectedCategory: '蔬菜豆制品', tagMap: {}, startTime: 0 };
+
+    function saveRecord(r) {
+      const record = { recordId: Date.now() + '-' + Math.random().toString(36).slice(2), time: new Date().toISOString(), ...r };
+      if (typeof EXPERIMENT_SUBMIT_URL === 'string' && EXPERIMENT_SUBMIT_URL.trim()) {
+        fetch(EXPERIMENT_SUBMIT_URL.trim(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(record) }).catch(() => {});
+      }
+    }
+
+    function switchScr(id) {
+      if (id === 'screen-shop') state.startTime = Date.now();
+      ['screen-start', 'screen-shop', 'screen-cart', 'screen-success'].forEach(s => {
+        const el = document.getElementById(s);
+        if (el) el.style.display = 'none';
+      });
+      const target = document.getElementById(id);
+      if (target) target.style.display = 'flex';
+      window.scrollTo(0, 0);
+    }
+
+    function initExperiment() {
+      const groups = ['control', 'peer', 'group', 'mixed'];
+      state.group = groups[Math.floor(Math.random() * groups.length)];
+      state.tagMap = {};
+      const lowItems = INGREDIENTS.filter(i => i.carbon === 'green');
+      const shuffled = [...lowItems].sort(() => Math.random() - 0.5);
+      if (state.group === 'peer') shuffled.slice(0, 3).forEach(i => state.tagMap[i.id] = 'peer');
+      else if (state.group === 'group') shuffled.slice(0, 3).forEach(i => state.tagMap[i.id] = 'group');
+      else if (state.group === 'mixed') { shuffled.slice(0, 2).forEach(i => state.tagMap[i.id] = 'peer'); shuffled.slice(2, 4).forEach(i => state.tagMap[i.id] = 'group'); }
+      renderSidebar(); renderAllProducts(); renderProgress(); updateUI(); setupScrollListener();
+    }
+
+    function renderProgress() {
+      document.getElementById('progress-dots').innerHTML = Array.from({length: 8}, (_, i) => `<div class="progress-dot ${i < state.cart.length ? 'filled' : (i === state.cart.length ? 'active' : '')}"></div>`).join('');
+      const rem = 8 - state.cart.length;
+      document.getElementById('shop-counter-text').innerText = rem > 0 ? `还需选择 ${rem} 件` : '已选满';
+    }
+
+    function renderSidebar() {
+      document.getElementById('sidebar-categories').innerHTML = CATEGORIES.map(cat => `<div id="side-${cat}" onclick="scrollToCat('${cat}')" class="py-6 px-1 text-[10px] font-black text-center cursor-pointer transition-all ${state.selectedCategory === cat ? 'category-active' : 'text-emerald-300'}">${cat}</div>`).join('');
+    }
+
+    function renderAllProducts() {
+      let html = '';
+      CATEGORIES.forEach(cat => {
+        html += `<div id="cat-section-${cat}" class="mb-8"><div class="category-header flex items-center gap-2 px-3"><span class="w-1 h-4 bg-emerald-600 rounded-full"></span>${cat}</div><div class="space-y-4 px-3">`;
+        INGREDIENTS.filter(i => i.category === cat).forEach(item => {
+          const isSel = state.cart.includes(item.id);
+          const tag = state.tagMap[item.id];
+          const disabled = !isSel && state.cart.length >= 8;
+          let tagHtml = tag === 'peer' ? `<div class="tag-peer"><i class="fas fa-users"></i> 两位好友选择</div>` : (tag === 'group' ? `<div class="tag-group"><i class="fas fa-fire"></i> 68%用户热销</div>` : '');
+          html += `<div class="product-card ${isSel ? 'selected' : ''}" data-id="${item.id}"><div class="absolute -top-1 -left-1"><div class="carbon-tag carbon-tag-${item.carbon}"><span>碳</span><span class="carbon-level-text uppercase">${item.carbon === 'green' ? '低' : (item.carbon === 'yellow' ? '中' : '高')}</span></div></div><img src="${item.img}" class="product-image" alt="${item.name}"><div class="flex-1 flex flex-col justify-between py-0.5"><div><h4 class="font-black text-emerald-900 text-base tracking-tight">${item.name}</h4><div class="mt-2 h-5">${tagHtml}</div></div><div class="flex justify-end"><button type="button" onclick="toggleItem(${item.id})" ${disabled ? 'disabled' : ''} class="product-add-btn px-6 py-2.5 rounded-2xl text-[11px] font-black transition-all ${isSel ? 'bg-emerald-50 text-emerald-400' : (disabled ? 'bg-gray-50 text-gray-200 cursor-not-allowed' : 'bg-emerald-700 text-white shadow-md active:scale-95 cursor-pointer')}">${isSel ? '移除' : '加入'}</button></div></div></div>`;
+        });
+        html += `</div></div>`;
+      });
+      document.getElementById('product-list').innerHTML = html;
+    }
+
+    function setupScrollListener() {
+      const list = document.getElementById('product-list');
+      list.addEventListener('scroll', () => {
+        let currentCat = CATEGORIES[0]; let maxVH = 0;
+        CATEGORIES.forEach(cat => {
+          const section = document.getElementById(`cat-section-${cat}`);
+          const rect = section.getBoundingClientRect(); const listRect = list.getBoundingClientRect();
+          const vH = Math.max(0, Math.min(rect.bottom, listRect.bottom) - Math.max(rect.top, listRect.top));
+          if (vH > maxVH) { maxVH = vH; currentCat = cat; }
+        });
+        if (state.selectedCategory !== currentCat) {
+          state.selectedCategory = currentCat;
+          CATEGORIES.forEach(cat => { const el = document.getElementById(`side-${cat}`); if (cat === currentCat) { el.classList.add('category-active'); el.classList.remove('text-emerald-300'); } else { el.classList.remove('category-active'); el.classList.add('text-emerald-300'); } });
+        }
+      }, { passive: true });
+    }
+
+    window.scrollToCat = (cat) => {
+      const section = document.getElementById(`cat-section-${cat}`);
+      if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    function updateUI() {
+      document.getElementById('footer-count').innerText = state.cart.length;
+      document.getElementById('btn-go-cart').disabled = state.cart.length === 0;
+      document.getElementById('btn-checkout').disabled = state.cart.length !== 8;
+      const rem = 8 - state.cart.length;
+      const msg = document.getElementById('cart-msg');
+      if (state.cart.length === 8) { msg.className = 'text-center py-3 rounded-2xl bg-emerald-50 text-emerald-700 text-xs font-black border border-emerald-100'; msg.innerHTML = '<i class="fas fa-check-circle mr-1"></i> 已选满 8 件'; }
+      else { msg.className = 'text-center py-3 rounded-2xl bg-emerald-50 text-emerald-700 text-xs font-black border border-emerald-100'; msg.innerHTML = `请再选择 ${rem} 件食材`; }
+    }
+
+    window.toggleItem = (id) => {
+      const idx = state.cart.indexOf(id);
+      if (idx > -1) state.cart.splice(idx, 1);
+      else if (state.cart.length < 8) {
+        state.cart.push(id);
+        if (!state.cartOrder.includes(id)) state.cartOrder.push(id);
+      }
+      renderAllProducts(); renderProgress(); updateUI();
+      if (state.step === 'cart') renderCart();
+    };
+
+    document.getElementById('btn-start').onclick = () => {
+      const loader = document.getElementById('loading');
+      loader.style.display = 'flex';
+      setTimeout(() => { loader.style.display = 'none'; state.step = 'shop'; switchScr('screen-shop'); initExperiment(); }, 800);
+    };
+
+    document.getElementById('btn-go-cart').onclick = () => { state.step = 'cart'; renderCart(); switchScr('screen-cart'); };
+    document.getElementById('btn-back-shop').onclick = () => { state.step = 'shop'; switchScr('screen-shop'); };
+    document.getElementById('btn-checkout').onclick = () => {
+      const count = state.cart.filter(id => INGREDIENTS.find(i => i.id === id).carbon === 'green').length;
+      const taggedLowChosen = state.cart.filter(id => state.tagMap[id] && INGREDIENTS.find(i => i.id === id).carbon === 'green').length;
+      const taggedLowTotal = Object.keys(state.tagMap).length;
+      const cartOrderFinal = state.cartOrder.filter(id => state.cart.includes(id));
+      saveRecord({
+        group: state.group,
+        cart: state.cart,
+        cartOrder: cartOrderFinal,
+        lowCount: count,
+        ratio: (count / 8).toFixed(2),
+        duration: Math.floor((Date.now() - state.startTime) / 1000),
+        tagMap: state.tagMap,
+        taggedLowChosen,
+        taggedLowTotal
+      });
+      state.step = 'success'; switchScr('screen-success');
+      const qBtn = document.getElementById('btn-questionnaire');
+      qBtn.href = (QUESTIONNAIRE_URL && QUESTIONNAIRE_URL.trim()) ? QUESTIONNAIRE_URL.trim() : '#';
+      if (!qBtn.href || qBtn.href === '#') qBtn.style.display = 'none'; else qBtn.style.display = 'inline-block';
+    };
+
+    function renderCart() {
+      document.getElementById('cart-list').innerHTML = state.cart.map(id => {
+        const item = INGREDIENTS.find(i => i.id === id);
+        return `<div class="bg-white p-5 rounded-3xl flex items-center justify-between shadow-sm border border-emerald-50"><div class="flex items-center gap-4"><img src="${item.img}" class="w-14 h-14 rounded-2xl object-cover shadow-sm"><div><h4 class="font-black text-emerald-900 tracking-tight">${item.name}</h4><div class="flex items-center gap-1.5 mt-1"><span class="w-2.5 h-2.5 rounded-full bg-${item.carbon === 'green' ? 'emerald' : (item.carbon === 'yellow' ? 'amber' : 'rose')}-500"></span><span class="text-[9px] font-black text-emerald-300 uppercase tracking-widest">${item.carbon === 'green' ? '低' : (item.carbon === 'yellow' ? '中' : '高')}</span></div></div></div><button onclick="toggleItem(${item.id})" class="text-emerald-100 hover:text-rose-500 transition-colors"><i class="fas fa-times-circle text-2xl"></i></button></div>`;
+      }).join('');
+    }
+
+    document.getElementById('screen-start').style.display = 'flex';
+    document.getElementById('screen-shop').style.display = 'none';
+    document.getElementById('screen-cart').style.display = 'none';
+    document.getElementById('screen-success').style.display = 'none';
+  </script>
+</body>
+</html>
