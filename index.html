@@ -190,7 +190,7 @@
     // 问卷链接：部署前请改为你的问卷 URL（如腾讯问卷、问卷星）
     const QUESTIONNAIRE_URL = ''; // 例如 'https://wj.qq.com/xxx'
     // 数据后台接口：实验结束时会 POST 记录到此 URL。本地调试时确保后台已启动（python3 server.py），部署后改为你的后台域名
-   const EXPERIMENT_SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbyJnlUfP8_Kbj9xcliWwNkG1auoDu83K19BKF76PBK14xxXhHy_M50u2UEBTFX5DsJk/exec';
+    const EXPERIMENT_SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbyJnlUfP8_Kbj9xcliWwNkG1auoDu83K19BKF76PBK14xxXhHy_M50u2UEBTFX5DsJk/exec';
 
     const INGREDIENTS = [
       { id: 1, name: '生菜', category: '蔬菜豆制品', carbon: 'green', img: '生菜.png' },
@@ -216,13 +216,40 @@
     ];
 
     const CATEGORIES = ['蔬菜豆制品', '肉禽蛋', '海鲜水产'];
+    // 无末尾斜杠打开时（如 .../pia6020-experiment）相对路径会错到根域名，这里统一成「当前目录」
+    const IMG_BASE = (function(){
+      var p = location.pathname || '';
+      if (p.endsWith('/')) return p;
+      if (p.indexOf('/') !== -1) return p.replace(/\/[^/]*$/, '') + '/';
+      return '/';
+    })();
+    function imgSrc(img) { return (typeof img === 'string' && (img.startsWith('http://') || img.startsWith('https://'))) ? img : (IMG_BASE + img); }
     let state = { step: 'start', group: '', cart: [], cartOrder: [], selectedCategory: '蔬菜豆制品', tagMap: {}, startTime: 0 };
 
     function saveRecord(r) {
       const record = { recordId: Date.now() + '-' + Math.random().toString(36).slice(2), time: new Date().toISOString(), ...r };
-      if (typeof EXPERIMENT_SUBMIT_URL === 'string' && EXPERIMENT_SUBMIT_URL.trim()) {
-        fetch(EXPERIMENT_SUBMIT_URL.trim(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(record) }).catch(() => {});
+      var url = (typeof EXPERIMENT_SUBMIT_URL === 'string' && EXPERIMENT_SUBMIT_URL.trim()) ? EXPERIMENT_SUBMIT_URL.trim() : '';
+      if (!url) return;
+      // 用表单+iframe提交，避免跨域 fetch 触发 CORS 预检被拒
+      var iframe = document.getElementById('submit-frame');
+      if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'submit-frame';
+        iframe.name = 'submit-frame';
+        iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
+        document.body.appendChild(iframe);
       }
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = url;
+      form.target = 'submit-frame';
+      var input = document.createElement('input');
+      input.name = 'data';
+      input.value = JSON.stringify(record);
+      form.appendChild(input);
+      document.body.appendChild(form);
+      form.submit();
+      setTimeout(function() { form.remove(); }, 3000);
     }
 
     function switchScr(id) {
@@ -267,7 +294,7 @@
           const tag = state.tagMap[item.id];
           const disabled = !isSel && state.cart.length >= 8;
           let tagHtml = tag === 'peer' ? `<div class="tag-peer"><i class="fas fa-users"></i> 两位好友选择</div>` : (tag === 'group' ? `<div class="tag-group"><i class="fas fa-fire"></i> 68%用户热销</div>` : '');
-          html += `<div class="product-card ${isSel ? 'selected' : ''}" data-id="${item.id}"><div class="absolute -top-1 -left-1"><div class="carbon-tag carbon-tag-${item.carbon}"><span>碳</span><span class="carbon-level-text uppercase">${item.carbon === 'green' ? '低' : (item.carbon === 'yellow' ? '中' : '高')}</span></div></div><img src="${item.img}" class="product-image" alt="${item.name}"><div class="flex-1 flex flex-col justify-between py-0.5"><div><h4 class="font-black text-emerald-900 text-base tracking-tight">${item.name}</h4><div class="mt-2 h-5">${tagHtml}</div></div><div class="flex justify-end"><button type="button" onclick="toggleItem(${item.id})" ${disabled ? 'disabled' : ''} class="product-add-btn px-6 py-2.5 rounded-2xl text-[11px] font-black transition-all ${isSel ? 'bg-emerald-50 text-emerald-400' : (disabled ? 'bg-gray-50 text-gray-200 cursor-not-allowed' : 'bg-emerald-700 text-white shadow-md active:scale-95 cursor-pointer')}">${isSel ? '移除' : '加入'}</button></div></div></div>`;
+          html += `<div class="product-card ${isSel ? 'selected' : ''}" data-id="${item.id}"><div class="absolute -top-1 -left-1"><div class="carbon-tag carbon-tag-${item.carbon}"><span>碳</span><span class="carbon-level-text uppercase">${item.carbon === 'green' ? '低' : (item.carbon === 'yellow' ? '中' : '高')}</span></div></div><img src="${imgSrc(item.img)}" class="product-image" alt="${item.name}"><div class="flex-1 flex flex-col justify-between py-0.5"><div><h4 class="font-black text-emerald-900 text-base tracking-tight">${item.name}</h4><div class="mt-2 h-5">${tagHtml}</div></div><div class="flex justify-end"><button type="button" onclick="toggleItem(${item.id})" ${disabled ? 'disabled' : ''} class="product-add-btn px-6 py-2.5 rounded-2xl text-[11px] font-black transition-all ${isSel ? 'bg-emerald-50 text-emerald-400' : (disabled ? 'bg-gray-50 text-gray-200 cursor-not-allowed' : 'bg-emerald-700 text-white shadow-md active:scale-95 cursor-pointer')}">${isSel ? '移除' : '加入'}</button></div></div></div>`;
         });
         html += `</div></div>`;
       });
@@ -350,7 +377,7 @@
     function renderCart() {
       document.getElementById('cart-list').innerHTML = state.cart.map(id => {
         const item = INGREDIENTS.find(i => i.id === id);
-        return `<div class="bg-white p-5 rounded-3xl flex items-center justify-between shadow-sm border border-emerald-50"><div class="flex items-center gap-4"><img src="${item.img}" class="w-14 h-14 rounded-2xl object-cover shadow-sm"><div><h4 class="font-black text-emerald-900 tracking-tight">${item.name}</h4><div class="flex items-center gap-1.5 mt-1"><span class="w-2.5 h-2.5 rounded-full bg-${item.carbon === 'green' ? 'emerald' : (item.carbon === 'yellow' ? 'amber' : 'rose')}-500"></span><span class="text-[9px] font-black text-emerald-300 uppercase tracking-widest">${item.carbon === 'green' ? '低' : (item.carbon === 'yellow' ? '中' : '高')}</span></div></div></div><button onclick="toggleItem(${item.id})" class="text-emerald-100 hover:text-rose-500 transition-colors"><i class="fas fa-times-circle text-2xl"></i></button></div>`;
+        return `<div class="bg-white p-5 rounded-3xl flex items-center justify-between shadow-sm border border-emerald-50"><div class="flex items-center gap-4"><img src="${imgSrc(item.img)}" class="w-14 h-14 rounded-2xl object-cover shadow-sm"><div><h4 class="font-black text-emerald-900 tracking-tight">${item.name}</h4><div class="flex items-center gap-1.5 mt-1"><span class="w-2.5 h-2.5 rounded-full bg-${item.carbon === 'green' ? 'emerald' : (item.carbon === 'yellow' ? 'amber' : 'rose')}-500"></span><span class="text-[9px] font-black text-emerald-300 uppercase tracking-widest">${item.carbon === 'green' ? '低' : (item.carbon === 'yellow' ? '中' : '高')}</span></div></div></div><button onclick="toggleItem(${item.id})" class="text-emerald-100 hover:text-rose-500 transition-colors"><i class="fas fa-times-circle text-2xl"></i></button></div>`;
       }).join('');
     }
 
