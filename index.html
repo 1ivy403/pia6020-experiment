@@ -137,7 +137,18 @@
           <p>3. 请留意食材右上角的标签。</p>
         </div>
       </div>
-      <button id="btn-start" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-black py-4 rounded-2xl shadow-xl active:scale-95 transition-all">进入选购</button>
+      <button id="btn-start" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-black py-4 rounded-2xl shadow-xl active:scale-95 transition-all">进入实验前问卷</button>
+    </div>
+
+    <div id="screen-pre" class="hidden flex-col h-full bg-emerald-50/30 overflow-hidden">
+      <header class="bg-white p-4 border-b border-emerald-50 flex-shrink-0">
+        <h2 class="text-lg font-black text-emerald-900 tracking-tight">实验前问卷</h2>
+        <p class="text-xs text-emerald-500 mt-1">请完整填写后进入实验（第7题选“不愿意”将结束流程）</p>
+      </header>
+      <div id="pre-form" class="flex-1 p-4 space-y-4 overflow-y-auto no-scrollbar"></div>
+      <div class="p-5 bg-white border-t border-emerald-50 flex-shrink-0">
+        <button id="btn-pre-submit" class="w-full bg-emerald-700 text-white font-black py-4 rounded-2xl">提交并进入实验</button>
+      </div>
     </div>
 
     <div id="screen-shop" class="hidden flex-col h-full relative bg-white">
@@ -178,19 +189,81 @@
       </div>
     </div>
 
+    <div id="screen-post" class="hidden flex-col h-full bg-emerald-50/30 overflow-hidden">
+      <header class="bg-white p-4 border-b border-emerald-50 flex-shrink-0">
+        <h2 class="text-lg font-black text-emerald-900 tracking-tight">实验后问卷</h2>
+        <p class="text-xs text-emerald-500 mt-1">请完成全部问题后提交（中途无退出入口）</p>
+      </header>
+      <div id="post-form" class="flex-1 p-4 space-y-4 overflow-y-auto no-scrollbar"></div>
+      <div class="p-5 bg-white border-t border-emerald-50 flex-shrink-0">
+        <button id="btn-post-submit" class="w-full bg-emerald-700 text-white font-black py-4 rounded-2xl">提交实验后问卷</button>
+      </div>
+    </div>
+
     <div id="screen-success" class="hidden flex-col items-center justify-center h-full p-10 text-center bg-white">
       <div class="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center mb-6 shadow-inner"><i class="fas fa-check text-emerald-500 text-3xl"></i></div>
-      <h1 class="text-2xl font-black text-emerald-900 mb-3 tracking-tight">下单成功！</h1>
-      <p class="text-emerald-600/60 mb-10 text-sm font-medium">感谢您的参与。<br>您的选择已安全记录，仅用于研究分析。</p>
+      <h1 id="success-title" class="text-2xl font-black text-emerald-900 mb-3 tracking-tight">提交成功！</h1>
+      <p id="success-desc" class="text-emerald-600/60 mb-10 text-sm font-medium">感谢您的参与。<br>您的数据已安全记录，仅用于研究分析。</p>
       <a id="btn-questionnaire" href="#" class="w-full bg-emerald-800 text-white font-black py-4 rounded-2xl shadow-xl inline-block text-center">填写后续问卷</a>
     </div>
   </div>
 
   <script>
-    // 问卷链接：部署前请改为你的问卷 URL（如腾讯问卷、问卷星）
-    const QUESTIONNAIRE_URL = ''; // 例如 'https://wj.qq.com/xxx'
-    // 数据后台接口：实验结束时会 POST 记录到此 URL。本地调试时确保后台已启动（python3 server.py），部署后改为你的后台域名
     const EXPERIMENT_SUBMIT_URL = 'https://pia6020-backend.onrender.com/api/record';
+    const SUBMIT_RETRY_DELAYS_MS = [1000, 2500];
+
+    const PRE_QUESTIONS = [
+      { id: 'q1_gender', title: '1. 您的性别', options: ['男', '女'] },
+      { id: 'q2_edu', title: '2. 您的最高学历', options: ['高中及以下', '大专', '本科', '硕士及以上'] },
+      { id: 'q3_job', title: '3. 您的职业状态', options: ['在读学生', '全职工作者', '自由职业者', '其他'] },
+      { id: 'q4_city', title: '4. 您当前常住地区', options: ['深圳', '其他城市'] },
+      { id: 'q5_age', title: '5. 您的年龄范围', options: ['18-40岁', '18-40岁以外'] },
+      { id: 'q6_carbon_know', title: '6. 您是否了解碳标签的含义', options: ['了解', '部分了解', '完全不了解'] },
+      { id: 'q7_consent', title: '7. 您后续是否愿意使用我们的小程序参与一项模拟点餐活动（用时5分钟）', options: ['愿意', '不愿意'] }
+    ];
+
+    const POST_Q_EXP = [
+      '1. 在选购过程中，我注意到了商品旁有“碳标签”',
+      '2. 在选购过程中，我注意到了关于“用户热销”或“好友选择”的信息',
+      '3. 我理解“谈标签”是用于表示该食材碳排放量高低的标识',
+      '4. 我理解界面中关于“用户热销”或“好友选择”的信息是想提示我一种消费趋势或规范',
+      '5. 总体而言，“碳标签”信息对我最终的食材选择影响程度是？',
+      '6. 总体而言，“用户热销”或“好友选择”信息对我最终的食材选择影响程度是？',
+      '7. 我的选择主要是基于个人口味偏好',
+      '8. 我选择低碳食材，主要是为了减少碳排放，保护环境',
+      '9. 我选择低碳食材时，考虑到了朋友或身边的人会认同我的选择',
+      '10. 我选择低碳食材时，希望自己的选择与大多数人的选择或社会潮流保持一致',
+      '11. 在做选择时，我会想象朋友会对我的选择作何评价',
+      '12. 我选择低碳食材，是因为我觉得它会让我在朋友中显得更有品味或更具社会责任感',
+      '13. 如果我的朋友知道我选择低碳食材，我希望他们会认可我',
+      '14. 我会希望我和我的朋友选择基本一致，如果不同，我会感到无所适从',
+      '15. 我不关心我的朋友是如何选择的，我完全根据自己的想法来选择',
+      '16. 我倾向选择看起来更受欢迎的商品，因为这让我感觉自己是潮流的一部分',
+      '17. 我觉得选择低碳食材，会让我得到社会的认可',
+      '18. 我感觉大多数人都会倾向于选择低碳食材，我应该顺应这个趋势',
+      '19. 我相信选择大多数人推荐的商品，通常是一个更安全、更不容易出错的决定',
+      '20. 大众的选择趋势对我来说无关紧要，我完全根据自己的判断做决定'
+    ];
+
+    const POST_Q_CTRL = [
+      '1. 在选购过程中，我注意到了商品旁有“碳标签”',
+      '2. 我理解“谈标签”是用于表示该食材碳排放量高低的标识',
+      '3. 总体而言，“碳标签”信息对我最终的食材选择影响程度是？',
+      '4. 我的选择主要是基于个人口味偏好',
+      '5. 我选择低碳食材，主要是为了减少碳排放，保护环境',
+      '6. 我选择低碳食材时，考虑到了朋友或身边的人会认同我的选择',
+      '7. 我选择低碳食材时，希望自己的选择与大多数人的选择或社会潮流保持一致',
+      '8. 在做选择时，我会想象朋友会对我的选择作何评价',
+      '9. 我选择低碳食材，是因为我觉得它会让我在朋友中显得更有品味或更具社会责任感',
+      '10. 如果我的朋友知道我选择低碳食材，我希望他们会认可我',
+      '11. 我会希望我和我的朋友选择基本一致，如果不同，我会感到无所适从',
+      '12. 我不关心我的朋友是如何选择的，我完全根据自己的想法来选择',
+      '13. 我倾向选择看起来更受欢迎的商品，因为这让我感觉自己是潮流的一部分',
+      '14. 我觉得选择低碳食材，会让我得到社会的认可',
+      '15. 我感觉大多数人都会倾向于选择低碳食材，我应该顺应这个趋势',
+      '16. 我相信选择大多数人推荐的商品，通常是一个更安全、更不容易出错的决定',
+      '17. 大众的选择趋势对我来说无关紧要，我完全根据自己的判断做决定'
+    ];
 
     const INGREDIENTS = [
       { id: 1, name: '生菜', category: '蔬菜豆制品', carbon: 'green', img: '生菜.png' },
@@ -214,28 +287,67 @@
       { id: 19, name: '牡蛎', category: '海鲜水产', carbon: 'green', img: '牡蛎.png' },
       { id: 20, name: '鱿鱼', category: '海鲜水产', carbon: 'green', img: '鱿鱼.png' }
     ];
-
     const CATEGORIES = ['蔬菜豆制品', '肉禽蛋', '海鲜水产'];
-    // 无末尾斜杠打开时（如 .../pia6020-experiment）相对路径会错到根域名，这里统一成「当前目录」
-    const IMG_BASE = (function(){
-      var p = location.pathname || '';
+
+    const IMG_BASE = (function() {
+      const p = location.pathname || '';
       if (p.endsWith('/')) return p;
       if (p.indexOf('/') !== -1) return p.replace(/\/[^/]*$/, '') + '/';
       return '/';
     })();
     function imgSrc(img) { return (typeof img === 'string' && (img.startsWith('http://') || img.startsWith('https://'))) ? img : (IMG_BASE + img); }
-    let state = { step: 'start', group: '', cart: [], cartOrder: [], selectedCategory: '蔬菜豆制品', tagMap: {}, startTime: 0 };
 
-    function saveRecord(r) {
-      const record = { recordId: Date.now() + '-' + Math.random().toString(36).slice(2), time: new Date().toISOString(), ...r };
-      if (typeof EXPERIMENT_SUBMIT_URL === 'string' && EXPERIMENT_SUBMIT_URL.trim()) {
-        fetch(EXPERIMENT_SUBMIT_URL.trim(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(record) }).catch(() => {});
-      }
+    let state = {
+      step: 'start',
+      participantId: '',
+      completed: false,
+      group: '',
+      cart: [],
+      cartOrder: [],
+      selectedCategory: '蔬菜豆制品',
+      tagMap: {},
+      startTime: 0,
+      preAnswers: {},
+      postAnswers: {},
+      experimentData: null
+    };
+
+    function makeId() {
+      const t = Date.now().toString(36);
+      const arr = new Uint32Array(2);
+      if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(arr);
+      const r = Array.from(arr).map(n => n.toString(36)).join('').slice(0, 10);
+      return 'p-' + t + '-' + r;
+    }
+
+    function trySubmitRecord(record, submitUrl, attempt) {
+      fetch(submitUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record),
+        keepalive: true
+      }).catch(() => {
+        if (attempt < SUBMIT_RETRY_DELAYS_MS.length) {
+          setTimeout(() => trySubmitRecord(record, submitUrl, attempt + 1), SUBMIT_RETRY_DELAYS_MS[attempt]);
+        }
+      });
+    }
+
+    function saveRecord(payload) {
+      const submitUrl = (typeof EXPERIMENT_SUBMIT_URL === 'string' && EXPERIMENT_SUBMIT_URL.trim()) ? EXPERIMENT_SUBMIT_URL.trim() : '';
+      if (!submitUrl) return;
+      const record = {
+        recordId: state.participantId || makeId(),
+        participantId: state.participantId || '',
+        time: new Date().toISOString(),
+        ...payload
+      };
+      trySubmitRecord(record, submitUrl, 0);
     }
 
     function switchScr(id) {
       if (id === 'screen-shop') state.startTime = Date.now();
-      ['screen-start', 'screen-shop', 'screen-cart', 'screen-success'].forEach(s => {
+      ['screen-start', 'screen-pre', 'screen-shop', 'screen-cart', 'screen-post', 'screen-success'].forEach(s => {
         const el = document.getElementById(s);
         if (el) el.style.display = 'none';
       });
@@ -244,10 +356,61 @@
       window.scrollTo(0, 0);
     }
 
+    function renderSingleChoiceQuestions(containerId, questions, namePrefix) {
+      const root = document.getElementById(containerId);
+      root.innerHTML = questions.map((q, idx) => {
+        const options = q.options.map((op, opIdx) => {
+          const inputName = `${namePrefix}-${q.id}`;
+          const inputId = `${inputName}-${opIdx}`;
+          return `<label for="${inputId}" class="flex items-center gap-3 p-3 rounded-xl border border-emerald-100 bg-white">
+            <input id="${inputId}" type="radio" name="${inputName}" value="${op}" class="w-4 h-4">
+            <span class="text-sm text-emerald-900">${op}</span>
+          </label>`;
+        }).join('');
+        return `<div class="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-100">
+          <div class="text-sm font-black text-emerald-900 mb-3">${q.title}</div>
+          <div class="space-y-2">${options}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderLikertQuestions(containerId, title, questions, namePrefix) {
+      const root = document.getElementById(containerId);
+      root.innerHTML = `<div class="bg-white rounded-2xl p-4 border border-emerald-100 text-sm text-emerald-700">${title}</div>` + questions.map((text, idx) => {
+        const qid = `q${idx + 1}`;
+        const options = [1, 2, 3, 4, 5, 6, 7].map(n => {
+          const inputName = `${namePrefix}-${qid}`;
+          const inputId = `${inputName}-${n}`;
+          return `<label for="${inputId}" class="flex-1 min-w-[36px] text-center">
+            <input id="${inputId}" type="radio" name="${inputName}" value="${n}" class="sr-only peer">
+            <span class="block py-2 rounded-lg border border-emerald-100 bg-white text-emerald-800 peer-checked:bg-emerald-700 peer-checked:text-white">${n}</span>
+          </label>`;
+        }).join('');
+        return `<div class="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-100">
+          <div class="text-sm font-black text-emerald-900 mb-3">${text}</div>
+          <div class="flex justify-between gap-1 text-[10px] text-emerald-400 font-bold mb-2"><span>很不同意</span><span>很同意</span></div>
+          <div class="flex gap-1">${options}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function collectAnswers(questions, namePrefix) {
+      const out = {};
+      for (const q of questions) {
+        const key = q.id || q;
+        const val = document.querySelector(`input[name="${namePrefix}-${key}"]:checked`);
+        if (!val) return null;
+        out[key] = val.value;
+      }
+      return out;
+    }
+
     function initExperiment() {
       const groups = ['control', 'peer', 'group', 'mixed'];
       state.group = groups[Math.floor(Math.random() * groups.length)];
       state.tagMap = {};
+      state.cart = [];
+      state.cartOrder = [];
       const lowItems = INGREDIENTS.filter(i => i.carbon === 'green');
       const shuffled = [...lowItems].sort(() => Math.random() - 0.5);
       if (state.group === 'peer') shuffled.slice(0, 3).forEach(i => state.tagMap[i.id] = 'peer');
@@ -257,7 +420,7 @@
     }
 
     function renderProgress() {
-      document.getElementById('progress-dots').innerHTML = Array.from({length: 8}, (_, i) => `<div class="progress-dot ${i < state.cart.length ? 'filled' : (i === state.cart.length ? 'active' : '')}"></div>`).join('');
+      document.getElementById('progress-dots').innerHTML = Array.from({ length: 8 }, (_, i) => `<div class="progress-dot ${i < state.cart.length ? 'filled' : (i === state.cart.length ? 'active' : '')}"></div>`).join('');
       const rem = 8 - state.cart.length;
       document.getElementById('shop-counter-text').innerText = rem > 0 ? `还需选择 ${rem} 件` : '已选满';
     }
@@ -274,7 +437,7 @@
           const isSel = state.cart.includes(item.id);
           const tag = state.tagMap[item.id];
           const disabled = !isSel && state.cart.length >= 8;
-          let tagHtml = tag === 'peer' ? `<div class="tag-peer"><i class="fas fa-users"></i> 两位好友选择</div>` : (tag === 'group' ? `<div class="tag-group"><i class="fas fa-fire"></i> 68%用户热销</div>` : '');
+          const tagHtml = tag === 'peer' ? `<div class="tag-peer"><i class="fas fa-users"></i> 两位好友选择</div>` : (tag === 'group' ? `<div class="tag-group"><i class="fas fa-fire"></i> 68%用户热销</div>` : '');
           html += `<div class="product-card ${isSel ? 'selected' : ''}" data-id="${item.id}"><div class="absolute -top-1 -left-1"><div class="carbon-tag carbon-tag-${item.carbon}"><span>碳</span><span class="carbon-level-text uppercase">${item.carbon === 'green' ? '低' : (item.carbon === 'yellow' ? '中' : '高')}</span></div></div><img src="${imgSrc(item.img)}" class="product-image" alt="${item.name}"><div class="flex-1 flex flex-col justify-between py-0.5"><div><h4 class="font-black text-emerald-900 text-base tracking-tight">${item.name}</h4><div class="mt-2 h-5">${tagHtml}</div></div><div class="flex justify-end"><button type="button" onclick="toggleItem(${item.id})" ${disabled ? 'disabled' : ''} class="product-add-btn px-6 py-2.5 rounded-2xl text-[11px] font-black transition-all ${isSel ? 'bg-emerald-50 text-emerald-400' : (disabled ? 'bg-gray-50 text-gray-200 cursor-not-allowed' : 'bg-emerald-700 text-white shadow-md active:scale-95 cursor-pointer')}">${isSel ? '移除' : '加入'}</button></div></div></div>`;
         });
         html += `</div></div>`;
@@ -294,7 +457,11 @@
         });
         if (state.selectedCategory !== currentCat) {
           state.selectedCategory = currentCat;
-          CATEGORIES.forEach(cat => { const el = document.getElementById(`side-${cat}`); if (cat === currentCat) { el.classList.add('category-active'); el.classList.remove('text-emerald-300'); } else { el.classList.remove('category-active'); el.classList.add('text-emerald-300'); } });
+          CATEGORIES.forEach(cat => {
+            const el = document.getElementById(`side-${cat}`);
+            if (cat === currentCat) { el.classList.add('category-active'); el.classList.remove('text-emerald-300'); }
+            else { el.classList.remove('category-active'); el.classList.add('text-emerald-300'); }
+          });
         }
       }, { passive: true });
     }
@@ -310,8 +477,8 @@
       document.getElementById('btn-checkout').disabled = state.cart.length !== 8;
       const rem = 8 - state.cart.length;
       const msg = document.getElementById('cart-msg');
-      if (state.cart.length === 8) { msg.className = 'text-center py-3 rounded-2xl bg-emerald-50 text-emerald-700 text-xs font-black border border-emerald-100'; msg.innerHTML = '<i class="fas fa-check-circle mr-1"></i> 已选满 8 件'; }
-      else { msg.className = 'text-center py-3 rounded-2xl bg-emerald-50 text-emerald-700 text-xs font-black border border-emerald-100'; msg.innerHTML = `请再选择 ${rem} 件食材`; }
+      if (state.cart.length === 8) msg.innerHTML = '<i class="fas fa-check-circle mr-1"></i> 已选满 8 件';
+      else msg.innerHTML = `请再选择 ${rem} 件食材`;
     }
 
     window.toggleItem = (id) => {
@@ -325,36 +492,6 @@
       if (state.step === 'cart') renderCart();
     };
 
-    document.getElementById('btn-start').onclick = () => {
-      const loader = document.getElementById('loading');
-      loader.style.display = 'flex';
-      setTimeout(() => { loader.style.display = 'none'; state.step = 'shop'; switchScr('screen-shop'); initExperiment(); }, 800);
-    };
-
-    document.getElementById('btn-go-cart').onclick = () => { state.step = 'cart'; renderCart(); switchScr('screen-cart'); };
-    document.getElementById('btn-back-shop').onclick = () => { state.step = 'shop'; switchScr('screen-shop'); };
-    document.getElementById('btn-checkout').onclick = () => {
-      const count = state.cart.filter(id => INGREDIENTS.find(i => i.id === id).carbon === 'green').length;
-      const taggedLowChosen = state.cart.filter(id => state.tagMap[id] && INGREDIENTS.find(i => i.id === id).carbon === 'green').length;
-      const taggedLowTotal = Object.keys(state.tagMap).length;
-      const cartOrderFinal = state.cartOrder.filter(id => state.cart.includes(id));
-      saveRecord({
-        group: state.group,
-        cart: state.cart,
-        cartOrder: cartOrderFinal,
-        lowCount: count,
-        ratio: (count / 8).toFixed(2),
-        duration: Math.floor((Date.now() - state.startTime) / 1000),
-        tagMap: state.tagMap,
-        taggedLowChosen,
-        taggedLowTotal
-      });
-      state.step = 'success'; switchScr('screen-success');
-      const qBtn = document.getElementById('btn-questionnaire');
-      qBtn.href = (QUESTIONNAIRE_URL && QUESTIONNAIRE_URL.trim()) ? QUESTIONNAIRE_URL.trim() : '#';
-      if (!qBtn.href || qBtn.href === '#') qBtn.style.display = 'none'; else qBtn.style.display = 'inline-block';
-    };
-
     function renderCart() {
       document.getElementById('cart-list').innerHTML = state.cart.map(id => {
         const item = INGREDIENTS.find(i => i.id === id);
@@ -362,9 +499,95 @@
       }).join('');
     }
 
+    function showFinal(title, desc) {
+      document.getElementById('success-title').innerText = title;
+      document.getElementById('success-desc').innerHTML = desc;
+      document.getElementById('btn-questionnaire').style.display = 'none';
+      state.completed = true;
+      switchScr('screen-success');
+    }
+
+    document.getElementById('btn-start').onclick = () => {
+      state.participantId = makeId();
+      renderSingleChoiceQuestions('pre-form', PRE_QUESTIONS, 'pre');
+      state.step = 'pre';
+      switchScr('screen-pre');
+    };
+
+    document.getElementById('btn-pre-submit').onclick = () => {
+      const answers = collectAnswers(PRE_QUESTIONS, 'pre');
+      if (!answers) return alert('请完成实验前问卷全部题目后再继续。');
+      state.preAnswers = answers;
+      if (answers.q7_consent === '不愿意') {
+        saveRecord({ participantId: state.participantId, flowStatus: 'declined_before_experiment', preQuestionnaire: answers });
+        return showFinal('感谢参与', '您已选择不参加后续实验。<br>感谢您的时间与支持。');
+      }
+      const loader = document.getElementById('loading');
+      loader.style.display = 'flex';
+      setTimeout(() => {
+        loader.style.display = 'none';
+        state.step = 'shop';
+        initExperiment();
+        switchScr('screen-shop');
+      }, 600);
+    };
+
+    document.getElementById('btn-go-cart').onclick = () => { state.step = 'cart'; renderCart(); switchScr('screen-cart'); };
+    document.getElementById('btn-back-shop').onclick = () => { state.step = 'shop'; switchScr('screen-shop'); };
+
+    document.getElementById('btn-checkout').onclick = () => {
+      const lowCount = state.cart.filter(id => INGREDIENTS.find(i => i.id === id).carbon === 'green').length;
+      const taggedLowChosen = state.cart.filter(id => state.tagMap[id] && INGREDIENTS.find(i => i.id === id).carbon === 'green').length;
+      const taggedLowTotal = Object.keys(state.tagMap).length;
+      const cartOrderFinal = state.cartOrder.filter(id => state.cart.includes(id));
+      state.experimentData = {
+        group: state.group,
+        groupType: state.group === 'control' ? 'control' : 'experiment',
+        cart: state.cart,
+        cartOrder: cartOrderFinal,
+        lowCount,
+        ratio: (lowCount / 8).toFixed(2),
+        duration: Math.floor((Date.now() - state.startTime) / 1000),
+        tagMap: state.tagMap,
+        taggedLowChosen,
+        taggedLowTotal
+      };
+      const qs = state.group === 'control' ? POST_Q_CTRL : POST_Q_EXP;
+      renderLikertQuestions('post-form', `您当前属于${state.experimentData.groupType === 'control' ? '对照组' : '实验组'}，请完成实验后问卷。`, qs, 'post');
+      state.step = 'post';
+      switchScr('screen-post');
+    };
+
+    document.getElementById('btn-post-submit').onclick = () => {
+      const qList = (state.group === 'control' ? POST_Q_CTRL : POST_Q_EXP).map((_, i) => ({ id: `q${i + 1}` }));
+      const answers = collectAnswers(qList, 'post');
+      if (!answers) return alert('请完成实验后问卷全部题目后提交。');
+      state.postAnswers = answers;
+      saveRecord({
+        participantId: state.participantId,
+        flowStatus: 'completed',
+        preQuestionnaire: state.preAnswers,
+        experimentData: state.experimentData,
+        postQuestionnaire: {
+          version: state.group === 'control' ? 'control' : 'experiment',
+          answers: state.postAnswers
+        }
+      });
+      showFinal('全部完成', '感谢您的参与。<br>实验前问卷、实验过程与实验后问卷数据已关联保存。');
+    };
+
+    window.addEventListener('beforeunload', (e) => {
+      if (!state.completed && state.step !== 'start') {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+
     document.getElementById('screen-start').style.display = 'flex';
+    document.getElementById('screen-pre').style.display = 'none';
     document.getElementById('screen-shop').style.display = 'none';
     document.getElementById('screen-cart').style.display = 'none';
+    document.getElementById('screen-post').style.display = 'none';
     document.getElementById('screen-success').style.display = 'none';
   </script>
 </body>
