@@ -247,7 +247,7 @@
 
     const POST_Q_CTRL = [
       '1. 在选购过程中，我注意到了商品旁有“碳标签”',
-      '2. 我理解“谈标签”是用于表示该食材碳排放量高低的标识',
+      '2. 我理解“碳标签”是用于表示该食材碳排放量高低的标识',
       '3. 总体而言，“碳标签”信息对我最终的食材选择影响程度是？',
       '4. 我的选择主要是基于个人口味偏好',
       '5. 我选择低碳食材，主要是为了减少碳排放，保护环境',
@@ -382,7 +382,7 @@
           const inputName = `${namePrefix}-${qid}`;
           const inputId = `${inputName}-${n}`;
           return `<label for="${inputId}" class="flex-1 min-w-[36px] text-center">
-            <input id="${inputId}" type="radio" name="${inputName}" value="${n}" class="sr-only peer">
+            <input id="${inputId}" type="radio" name="${inputName}" value="${n}" class="peer hidden">
             <span class="block py-2 rounded-lg border border-emerald-100 bg-white text-emerald-800 peer-checked:bg-emerald-700 peer-checked:text-white">${n}</span>
           </label>`;
         }).join('');
