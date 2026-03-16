@@ -190,7 +190,7 @@
     // 问卷链接：部署前请改为你的问卷 URL（如腾讯问卷、问卷星）
     const QUESTIONNAIRE_URL = ''; // 例如 'https://wj.qq.com/xxx'
     // 数据后台接口：实验结束时会 POST 记录到此 URL。本地调试时确保后台已启动（python3 server.py），部署后改为你的后台域名
-    const EXPERIMENT_SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbyJnlUfP8_Kbj9xcliWwNkG1auoDu83K19BKF76PBK14xxXhHy_M50u2UEBTFX5DsJk/exec';
+    const EXPERIMENT_SUBMIT_URL = 'https://pia6020-backend.onrender.com/api/record';
 
     const INGREDIENTS = [
       { id: 1, name: '生菜', category: '蔬菜豆制品', carbon: 'green', img: '生菜.png' },
@@ -228,28 +228,9 @@
 
     function saveRecord(r) {
       const record = { recordId: Date.now() + '-' + Math.random().toString(36).slice(2), time: new Date().toISOString(), ...r };
-      var url = (typeof EXPERIMENT_SUBMIT_URL === 'string' && EXPERIMENT_SUBMIT_URL.trim()) ? EXPERIMENT_SUBMIT_URL.trim() : '';
-      if (!url) return;
-      // 用表单+iframe提交，避免跨域 fetch 触发 CORS 预检被拒
-      var iframe = document.getElementById('submit-frame');
-      if (!iframe) {
-        iframe = document.createElement('iframe');
-        iframe.id = 'submit-frame';
-        iframe.name = 'submit-frame';
-        iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
-        document.body.appendChild(iframe);
+      if (typeof EXPERIMENT_SUBMIT_URL === 'string' && EXPERIMENT_SUBMIT_URL.trim()) {
+        fetch(EXPERIMENT_SUBMIT_URL.trim(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(record) }).catch(() => {});
       }
-      var form = document.createElement('form');
-      form.method = 'POST';
-      form.action = url;
-      form.target = 'submit-frame';
-      var input = document.createElement('input');
-      input.name = 'data';
-      input.value = JSON.stringify(record);
-      form.appendChild(input);
-      document.body.appendChild(form);
-      form.submit();
-      setTimeout(function() { form.remove(); }, 3000);
     }
 
     function switchScr(id) {
