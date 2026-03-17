@@ -518,9 +518,19 @@
       const answers = collectAnswers(PRE_QUESTIONS, 'pre');
       if (!answers) return alert('请完成实验前问卷全部题目后再继续。');
       state.preAnswers = answers;
-      if (answers.q7_consent === '不愿意') {
-        saveRecord({ participantId: state.participantId, flowStatus: 'declined_before_experiment', preQuestionnaire: answers });
-        return showFinal('感谢参与', '您已选择不参加后续实验。<br>感谢您的时间与支持。');
+      const failedRules = [];
+      if (answers.q4_city !== '深圳') failedRules.push('非深圳常住');
+      if (answers.q5_age !== '18-40岁') failedRules.push('年龄不在18-40岁');
+      if (!(answers.q6_carbon_know === '了解' || answers.q6_carbon_know === '部分了解')) failedRules.push('碳标签认知不足');
+      if (answers.q7_consent !== '愿意') failedRules.push('不同意参加后续实验');
+      if (failedRules.length > 0) {
+        saveRecord({
+          participantId: state.participantId,
+          flowStatus: answers.q7_consent === '不愿意' ? 'declined_before_experiment' : 'ineligible_before_experiment',
+          preQuestionnaire: answers,
+          failedEligibilityRules: failedRules
+        });
+        return showFinal('感谢参与', '根据筛选条件，您本次无需继续后续实验。<br>感谢您的参与和支持。');
       }
       const loader = document.getElementById('loading');
       loader.style.display = 'flex';
